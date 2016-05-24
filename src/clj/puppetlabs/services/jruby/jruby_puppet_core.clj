@@ -4,15 +4,17 @@
             [schema.core :as schema]
             [puppetlabs.kitchensink.classpath :as ks-classpath]
             [puppetlabs.kitchensink.core :as ks]
-            [puppetlabs.services.jruby.jruby-puppet-schemas :as jruby-schemas]
+            [puppetlabs.services.jruby.jruby-puppet-schemas :as jruby-puppet-schemas]
+            [puppetlabs.services.jruby.jruby-schemas :as jruby-schemas]
             [puppetlabs.services.jruby.puppet-environments :as puppet-env]
             [puppetlabs.services.jruby.jruby-puppet-internal :as jruby-internal]
-            [puppetlabs.services.jruby.jruby-puppet-agents :as jruby-agents]
             [clojure.java.io :as io]
             [clojure.tools.logging :as log])
   (:import (puppetlabs.services.jruby.jruby_puppet_schemas JRubyPuppetInstance)
-           (com.puppetlabs.puppetserver PuppetProfiler)
-           (clojure.lang IFn)))
+           (puppetlabs.services.jruby.jruby_schemas JRubyInstance)
+           (com.puppetlabs.puppetserver PuppetProfiler JRubyPuppet)
+           (clojure.lang IFn)
+           (java.util HashMap)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Constants
@@ -62,19 +64,19 @@
        (min 4)))
 
 (schema/defn ^:always-validate
-  get-pool-state :- jruby-schemas/PoolState
+  get-pool-state :- jruby-puppet-schemas/PoolState
   "Gets the PoolState from the pool context."
-  [context :- jruby-schemas/PoolContext]
+  [context :- jruby-puppet-schemas/PoolContext]
   (jruby-internal/get-pool-state context))
 
 (schema/defn ^:always-validate
   get-pool :- jruby-schemas/pool-queue-type
   "Gets the JRubyPuppet pool object from the pool context."
-  [context :- jruby-schemas/PoolContext]
+  [context :- jruby-puppet-schemas/PoolContext]
   (jruby-internal/get-pool context))
 
 (schema/defn ^:always-validate
-  registered-instances :- [JRubyPuppetInstance]
+  registered-instances :- [JRubyInstance]
   [context :- jruby-schemas/PoolContext]
   (-> (get-pool context)
       .getRegisteredElements
@@ -89,89 +91,31 @@
     (throw (IllegalArgumentException. (str "No configuration data found.  Perhaps "
                                            "you did not specify the --config option?")))))
 
-(schema/defn create-requested-event :- jruby-schemas/JRubyRequestedEvent
-  [reason :- jruby-schemas/JRubyEventReason]
-  {:type :instance-requested
-   :reason reason})
-
-(schema/defn create-borrowed-event :- jruby-schemas/JRubyBorrowedEvent
-  [requested-event :- jruby-schemas/JRubyRequestedEvent
-   instance :- jruby-schemas/JRubyPuppetBorrowResult]
-  {:type :instance-borrowed
-   :reason (:reason requested-event)
-   :requested-event requested-event
-   :instance instance})
-
-(schema/defn create-returned-event :- jruby-schemas/JRubyReturnedEvent
-  [instance :- jruby-schemas/JRubyPuppetInstanceOrPill
-   reason :- jruby-schemas/JRubyEventReason]
-  {:type :instance-returned
-   :reason reason
-   :instance instance})
-
-(schema/defn create-lock-requested-event :- jruby-schemas/JRubyLockRequestedEvent
-  [reason :- jruby-schemas/JRubyEventReason]
-  {:type :lock-requested
-   :reason reason})
-
-(schema/defn create-lock-acquired-event :- jruby-schemas/JRubyLockAcquiredEvent
-  [reason :- jruby-schemas/JRubyEventReason]
-  {:type :lock-acquired
-   :reason reason})
-
-(schema/defn create-lock-released-event :- jruby-schemas/JRubyLockReleasedEvent
-  [reason :- jruby-schemas/JRubyEventReason]
-  {:type :lock-released
-   :reason reason})
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Support functions for event notification
-
-(schema/defn notify-event-listeners :- jruby-schemas/JRubyEvent
-  [event-callbacks :- [IFn]
-   event :- jruby-schemas/JRubyEvent]
-  (doseq [f event-callbacks]
-    (f event))
-  event)
-
-(schema/defn instance-requested :- jruby-schemas/JRubyRequestedEvent
-  [event-callbacks :- [IFn]
-   reason :- jruby-schemas/JRubyEventReason]
-  (notify-event-listeners event-callbacks (create-requested-event reason)))
-
-(schema/defn instance-borrowed :- jruby-schemas/JRubyBorrowedEvent
-  [event-callbacks :- [IFn]
-   requested-event :- jruby-schemas/JRubyRequestedEvent
-   instance :- jruby-schemas/JRubyPuppetBorrowResult]
-  (notify-event-listeners event-callbacks (create-borrowed-event requested-event instance)))
-
-(schema/defn instance-returned :- jruby-schemas/JRubyReturnedEvent
-  [event-callbacks :- [IFn]
-   instance :- jruby-schemas/JRubyPuppetInstanceOrPill
-   reason :- jruby-schemas/JRubyEventReason]
-  (notify-event-listeners event-callbacks (create-returned-event instance reason)))
-
-(schema/defn lock-requested :- jruby-schemas/JRubyLockRequestedEvent
-  [event-callbacks :- [IFn]
-   reason :- jruby-schemas/JRubyEventReason]
-  (notify-event-listeners event-callbacks (create-lock-requested-event reason)))
-
-(schema/defn lock-acquired :- jruby-schemas/JRubyLockAcquiredEvent
-  [event-callbacks :- [IFn]
-   reason :- jruby-schemas/JRubyEventReason]
-  (notify-event-listeners event-callbacks (create-lock-acquired-event reason)))
-
-(schema/defn lock-released :- jruby-schemas/JRubyLockReleasedEvent
-  [event-callbacks :- [IFn]
-   reason :- jruby-schemas/JRubyEventReason]
-  (notify-event-listeners event-callbacks (create-lock-released-event reason)))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Public
 
+(def facter-jar
+  "Well-known name of the facter jar file"
+  "facter.jar")
+
 (schema/defn ^:always-validate
-  initialize-config :- jruby-schemas/JRubyPuppetConfig
+add-facter-jar-to-system-classloader
+  "Searches the ruby load path for a file whose name matches that of the
+  facter jar file.  The first one found is added to the system classloader's
+  classpath.  If no match is found, an info message is written to the log
+  but no failure is returned"
+  [ruby-load-path :- (schema/both (schema/pred vector?) [schema/Str]) ]
+  (if-let [facter-jar (first
+                       (filter fs/exists?
+                               (map #(fs/file % facter-jar) ruby-load-path)))]
+    (do
+      (log/debugf "Adding facter jar to classpath from: %s" facter-jar)
+      (ks-classpath/add-classpath facter-jar))
+    (log/info "Facter jar not found in ruby load path")))
+
+(schema/defn ^:always-validate
+  initialize-config :- jruby-puppet-schemas/JRubyPuppetConfig
   [config :- {schema/Keyword schema/Any}]
   (-> (get-in config [:jruby-puppet])
       (assoc :http-client-ssl-protocols
@@ -196,117 +140,8 @@
       (update-in [:use-legacy-auth-conf] #(or % (nil? %)))
       (dissoc :environment-class-cache-enabled)))
 
-(def facter-jar
-  "Well-known name of the facter jar file"
-  "facter.jar")
 
-(schema/defn ^:always-validate
-  add-facter-jar-to-system-classloader
-  "Searches the ruby load path for a file whose name matches that of the
-  facter jar file.  The first one found is added to the system classloader's
-  classpath.  If no match is found, an info message is written to the log
-  but no failure is returned"
-  [ruby-load-path :- (schema/both (schema/pred vector?) [schema/Str]) ]
-  (if-let [facter-jar (first
-                        (filter fs/exists?
-                          (map #(fs/file % facter-jar) ruby-load-path)))]
-    (do
-      (log/debugf "Adding facter jar to classpath from: %s" facter-jar)
-      (ks-classpath/add-classpath facter-jar))
-    (log/info "Facter jar not found in ruby load path")))
-
-(schema/defn ^:always-validate
-  create-pool-context :- jruby-schemas/PoolContext
-  "Creates a new JRubyPuppet pool context with an empty pool. Once the JRubyPuppet
-  pool object has been created, it will need to be filled using `prime-pool!`."
-  [config :- jruby-schemas/JRubyPuppetConfig
-   profiler :- (schema/maybe PuppetProfiler)
-   agent-shutdown-fn :- (schema/pred ifn?)]
-  {:config                config
-   :profiler              profiler
-   :pool-agent            (jruby-agents/pool-agent agent-shutdown-fn)
-   ;; For an explanation of why we need a separate agent for the `flush-instance`,
-   ;; see the comments in jruby-puppet-agents/send-flush-instance
-   :flush-instance-agent  (jruby-agents/pool-agent agent-shutdown-fn)
-   :pool-state            (atom (jruby-internal/create-pool-from-config config))})
-
-(schema/defn ^:always-validate
-  free-instance-count
-  "Returns the number of JRubyPuppet instances available in the pool."
-  [pool :- jruby-schemas/pool-queue-type]
-  {:post [(>= % 0)]}
-  (.size pool))
-
-(schema/defn ^:always-validate
-  instance-state :- jruby-schemas/JRubyInstanceState
-  "Get the state metadata for a JRubyPuppet instance."
-  [jruby-puppet :- (schema/pred jruby-schemas/jruby-puppet-instance?)]
-  @(:state jruby-puppet))
-
-(schema/defn ^:always-validate
-  borrow-from-pool :- jruby-schemas/JRubyPuppetInstanceOrPill
-  "Borrows a JRubyPuppet interpreter from the pool. If there are no instances
-  left in the pool then this function will block until there is one available."
-  [pool-context :- jruby-schemas/PoolContext
-   reason :- schema/Any
-   event-callbacks :- [IFn]]
-  (let [requested-event (instance-requested event-callbacks reason)
-        instance (jruby-internal/borrow-from-pool pool-context)]
-    (instance-borrowed event-callbacks requested-event instance)
-    instance))
-
-(schema/defn ^:always-validate
-  borrow-from-pool-with-timeout :- jruby-schemas/JRubyPuppetBorrowResult
-  "Borrows a JRubyPuppet interpreter from the pool, like borrow-from-pool but a
-  blocking timeout is provided. If an instance is available then it will be
-  immediately returned to the caller, if not then this function will block
-  waiting for an instance to be free for the number of milliseconds given in
-  timeout. If the timeout runs out then nil will be returned, indicating that
-  there were no instances available."
-  [pool-context :- jruby-schemas/PoolContext
-   timeout :- schema/Int
-   reason :- schema/Any
-   event-callbacks :- [IFn]]
-  {:pre  [(>= timeout 0)]}
-  (let [requested-event (instance-requested event-callbacks reason)
-        instance (jruby-internal/borrow-from-pool-with-timeout
-                   pool-context
-                   timeout)]
-    (instance-borrowed event-callbacks requested-event instance)
-    instance))
-
-(schema/defn ^:always-validate
-  return-to-pool
-  "Return a borrowed pool instance to its free pool."
-  [instance :- jruby-schemas/JRubyPuppetInstanceOrPill
-   reason :- schema/Any
-   event-callbacks :- [IFn]]
-  (instance-returned event-callbacks instance reason)
-  (jruby-internal/return-to-pool instance))
-
-(schema/defn ^:always-validate
-  lock-pool
-  "Locks the JRuby pool for exclusive access."
-  [pool :- jruby-schemas/pool-queue-type
-   reason :- schema/Any
-   event-callbacks :- [IFn]]
-  (log/debug "Acquiring lock on JRubyPool...")
-  (lock-requested event-callbacks reason)
-  (.lock pool)
-  (lock-acquired event-callbacks reason)
-  (log/debug "Lock acquired"))
-
-(schema/defn ^:always-validate
-  unlock-pool
-  "Unlocks the JRuby pool, restoring concurernt access."
-  [pool :- jruby-schemas/pool-queue-type
-   reason :- schema/Any
-   event-callbacks :- [IFn]]
-  (.unlock pool)
-  (lock-released event-callbacks reason)
-  (log/debug "Lock on JRubyPool released"))
-
-(schema/defn ^:always-validate cli-ruby! :- jruby-schemas/JRubyMainStatus
+(schema/defn ^:always-validate cli-ruby! :- jruby-puppet-schemas/JRubyMainStatus
   "Run JRuby as though native `ruby` were invoked with args on the CLI"
   [config :- {schema/Keyword schema/Any}
    args :- [schema/Str]]
@@ -314,7 +149,7 @@
         argv (into-array String (concat ["-rjar-dependencies"] args))]
     (.run main argv)))
 
-(schema/defn ^:always-validate cli-run! :- (schema/maybe jruby-schemas/JRubyMainStatus)
+(schema/defn ^:always-validate cli-run! :- (schema/maybe jruby-puppet-schemas/JRubyMainStatus)
   "Run a JRuby CLI command, e.g. gem, irb, etc..."
   [config :- {schema/Keyword schema/Any}
    command :- schema/Str
@@ -449,7 +284,7 @@
   "Mark the specified environment expired, in all JRuby instances.  Resets
   the cached class info for the environment's 'tag' to nil and increments the
   'cache-generation-id' value."
-  [context :- jruby-schemas/PoolContext
+  [context :- jruby-puppet-schemas/PoolContext
    env-name :- schema/Str
    environment-class-info-cache :- (schema/atom EnvironmentClassInfoCache)]
   (swap! environment-class-info-cache
@@ -465,7 +300,7 @@
   "Mark all cached environments expired, in all JRuby instances.  Resets the
   cached class info for all previously stored environment 'tags' to nil and
   increments the 'cache-generation-id' value."
-  [context :- jruby-schemas/PoolContext
+  [context :- jruby-puppet-schemas/PoolContext
    environment-class-info-cache :- (schema/atom EnvironmentClassInfoCache)]
   (swap! environment-class-info-cache
          (partial ks/mapvals invalidate-environment-class-info-entry))
@@ -473,3 +308,48 @@
     (-> jruby-instance
         :environment-registry
         puppet-env/mark-all-environments-expired!)))
+
+(schema/defn get-initialize-pool-instance-fn :- IFn
+  [config
+   profiler :- (schema/maybe PuppetProfiler)]
+  (fn [jruby-instance]
+    (let [{:keys [ruby-load-path http-client-ssl-protocols
+                  http-client-cipher-suites
+                  http-client-connect-timeout-milliseconds
+                  http-client-idle-timeout-milliseconds
+                  use-legacy-auth-conf]} config]
+      (when-not ruby-load-path
+        (throw (Exception.
+                "JRuby service missing config value 'ruby-load-path'")))
+      (let [scripting-container (:scripting-container jruby-instance)
+            ruby-puppet-class (.runScriptlet scripting-container "Puppet::Server::Master")
+            puppet-config (jruby-internal/config->puppet-config config)
+            puppetserver-config (HashMap.)
+            env-registry (puppet-env/environment-registry)]
+        (when http-client-ssl-protocols
+          (.put puppetserver-config "ssl_protocols" (into-array String http-client-ssl-protocols)))
+        (when http-client-cipher-suites
+          (.put puppetserver-config "cipher_suites" (into-array String http-client-cipher-suites)))
+        (doto puppetserver-config
+          (.put "profiler" profiler)
+          (.put "environment_registry" env-registry)
+          (.put "http_connect_timeout_milliseconds" http-client-connect-timeout-milliseconds)
+          (.put "http_idle_timeout_milliseconds" http-client-idle-timeout-milliseconds)
+          (.put "use_legacy_auth_conf" use-legacy-auth-conf))
+        (let [jruby-puppet (.callMethodWithArgArray
+                            scripting-container
+                            ruby-puppet-class
+                            "new"
+                            (into-array Object
+                                        [puppet-config puppetserver-config])
+                            JRubyPuppet)]
+          (assoc jruby-instance :jruby-puppet jruby-puppet))))))
+
+(schema/defn get-initialize-scripting-container-fn
+  []
+  (fn [scripting-container config]
+    (doto scripting-container
+      (.setEnvironment (jruby-internal/managed-environment (jruby-internal/get-system-env) (:gem-home config)))
+      (.runScriptlet "require 'jar-dependencies'")
+      (.runScriptlet "require 'puppet/server/master'"))
+    scripting-container))

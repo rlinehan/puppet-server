@@ -1,8 +1,10 @@
 (ns puppetlabs.services.jruby.jruby-testutils
-  (:require [puppetlabs.services.jruby.jruby-puppet-core :as jruby-core]
+  (:require [puppetlabs.services.jruby.jruby-puppet-core :as jruby-puppet-core]
+            [puppetlabs.services.jruby.jruby-core :as jruby-core]
             [puppetlabs.services.jruby.puppet-environments :as puppet-env]
             [puppetlabs.services.jruby.jruby-puppet-schemas :as jruby-schemas]
-            [puppetlabs.services.jruby.jruby-puppet-internal :as jruby-internal]
+            [puppetlabs.services.jruby.jruby-puppet-internal :as jruby-puppet-internal]
+            [puppetlabs.services.jruby.jruby-internal :as jruby-internal]
             [puppetlabs.trapperkeeper.app :as tk-app]
             [puppetlabs.trapperkeeper.services :as tk-service]
             [schema.core :as schema]
@@ -54,7 +56,7 @@
   differs slightly from the raw format that would be read from config files
   on disk.)"
   ([]
-    (jruby-core/initialize-config
+    (jruby-puppet-core/initialize-config
       {:jruby-puppet
        {:ruby-load-path  ruby-load-path
         :gem-home        gem-home
@@ -82,7 +84,7 @@
    (create-pool-instance (jruby-puppet-config {:max-active-instances 1})))
   ([config]
    (let [pool (jruby-internal/instantiate-free-pool 1)]
-     (jruby-internal/create-pool-instance! pool 1 config default-flush-fn default-profiler))))
+     (jruby-puppet-internal/create-pool-instance! pool 1 config default-flush-fn default-profiler))))
 
 (defn create-mock-jruby-instance
   "Creates a mock implementation of the JRubyPuppet interface."

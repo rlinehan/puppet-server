@@ -3,6 +3,7 @@
 (def tk-jetty-version "1.5.6")
 (def ks-version "1.3.0")
 (def ps-version "2.4.0-master-SNAPSHOT")
+(def jruby-utils-version "0.1.0-SNAPSHOT")
 
 (defn deploy-info
   [url]
@@ -54,6 +55,7 @@
                  [net.logstash.logback/logstash-logback-encoder "4.5.1"]
 
 
+                 [puppetlabs/jruby-utils ~jruby-utils-version]
                  [puppetlabs/trapperkeeper ~tk-version]
                  [puppetlabs/trapperkeeper-authorization "0.6.0"]
                  [puppetlabs/kitchensink ~ks-version]

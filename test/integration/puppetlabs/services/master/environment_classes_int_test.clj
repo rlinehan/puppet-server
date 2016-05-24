@@ -9,7 +9,7 @@
             [puppetlabs.services.protocols.jruby-puppet :as jruby-protocol]
             [cheshire.core :as cheshire]
             [me.raynes.fs :as fs]
-            [puppetlabs.services.jruby.jruby-puppet-internal :as jruby-internal]
+            [puppetlabs.services.jruby.jruby-internal :as jruby-internal]
             [puppetlabs.services.jruby.jruby-testutils :as jruby-testutils]
             [clojure.tools.logging :as log]
             [puppetlabs.trapperkeeper.core :as tk]

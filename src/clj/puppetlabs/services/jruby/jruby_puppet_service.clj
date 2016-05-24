@@ -1,7 +1,9 @@
 (ns puppetlabs.services.jruby.jruby-puppet-service
   (:require [clojure.tools.logging :as log]
             [puppetlabs.services.jruby.jruby-puppet-core :as core]
-            [puppetlabs.services.jruby.jruby-puppet-agents :as jruby-agents]
+            [puppetlabs.services.jruby.jruby-puppet-internal :as internal]
+            [puppetlabs.services.jruby.jruby-core :as jruby-core]
+            [puppetlabs.services.jruby.jruby-agents :as jruby-agents]
             [puppetlabs.trapperkeeper.core :as trapperkeeper]
             [puppetlabs.trapperkeeper.services :as tk-services]
             [puppetlabs.services.protocols.jruby-puppet :as jruby]
@@ -36,7 +38,17 @@
                   "definitions in the /etc/puppetlabs/puppet/auth.conf file to"
                   "the /etc/puppetlabs/puppetserver/conf.d/auth.conf file."))
       (core/add-facter-jar-to-system-classloader (:ruby-load-path config))
-      (let [pool-context (core/create-pool-context config profiler agent-shutdown-fn)]
+      (let [jruby-config {:ruby-load-path (internal/managed-load-path (:ruby-load-path config))
+                          :gem-home (:gem-home config)
+                          :compile-mode (:compile-mode config)
+                          :borrow-timeout (:borrow-timeout config)
+                          :max-active-instances (:max-active-instances config)
+                          :max-requests-per-instance (:max-requests-per-instance config)
+                          :lifecycle {:shutdown-on-error agent-shutdown-fn
+                                      :initialize-pool-instance (core/get-initialize-pool-instance-fn config profiler)
+                                      :initialize-scripting-container (core/get-initialize-scripting-container-fn)
+                                      :cleanup identity}}
+            pool-context (jruby-core/create-pool-context jruby-config)]
         (jruby-agents/send-prime-pool! pool-context)
         (-> context
             (assoc :pool-context pool-context)
@@ -56,18 +68,18 @@
   (borrow-instance
     [this reason]
     (let [{:keys [pool-context borrow-timeout event-callbacks]} (tk-services/service-context this)]
-      (core/borrow-from-pool-with-timeout pool-context borrow-timeout reason @event-callbacks)))
+      (jruby-core/borrow-from-pool-with-timeout pool-context borrow-timeout reason @event-callbacks)))
 
   (return-instance
     [this jruby-instance reason]
     (let [event-callbacks (:event-callbacks (tk-services/service-context this))]
-      (core/return-to-pool jruby-instance reason @event-callbacks)))
+      (jruby-core/return-to-pool jruby-instance reason @event-callbacks)))
 
   (free-instance-count
     [this]
     (let [pool-context (:pool-context (tk-services/service-context this))
-          pool         (core/get-pool pool-context)]
-      (core/free-instance-count pool)))
+          pool         (jruby-core/get-pool pool-context)]
+      (jruby-core/free-instance-count pool)))
 
   (mark-environment-expired!
     [this env-name]
@@ -113,10 +125,10 @@
             cache-generation-id-before-tag-computed)))
 
   (flush-jruby-pool!
-    [this]
-    (let [service-context (tk-services/service-context this)
+   [this]
+   (let [service-context (tk-services/service-context this)
           {:keys [pool-context]} service-context]
-      (jruby-agents/send-flush-and-repopulate-pool! pool-context)))
+     (jruby-agents/send-flush-and-repopulate-pool! pool-context)))
 
   (register-event-handler
     [this callback-fn]
@@ -169,10 +181,10 @@
                       tk-services/service-context)
          pool# (-> context#
                    :pool-context
-                   core/get-pool)
+                   jruby-core/get-pool)
          event-callbacks# (:event-callbacks context#)]
-     (core/lock-pool pool# ~reason @event-callbacks#)
+     (jruby-core/lock-pool pool# ~reason @event-callbacks#)
      (try
       ~@body
       (finally
-        (core/unlock-pool pool# ~reason @event-callbacks#)))))
+        (jruby-core/unlock-pool pool# ~reason @event-callbacks#)))))
