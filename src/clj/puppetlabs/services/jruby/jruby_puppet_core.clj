@@ -6,6 +6,7 @@
             [puppetlabs.kitchensink.core :as ks]
             [puppetlabs.services.jruby.jruby-puppet-schemas :as jruby-puppet-schemas]
             [puppetlabs.services.jruby.jruby-schemas :as jruby-schemas]
+            [puppetlabs.services.jruby.jruby-core :as jruby-core]
             [puppetlabs.services.jruby.puppet-environments :as puppet-env]
             [puppetlabs.services.jruby.jruby-puppet-internal :as jruby-internal]
             [clojure.java.io :as io]
@@ -68,21 +69,6 @@
   "Gets the PoolState from the pool context."
   [context :- jruby-puppet-schemas/PoolContext]
   (jruby-internal/get-pool-state context))
-
-(schema/defn ^:always-validate
-  get-pool :- jruby-schemas/pool-queue-type
-  "Gets the JRubyPuppet pool object from the pool context."
-  [context :- jruby-puppet-schemas/PoolContext]
-  (jruby-internal/get-pool context))
-
-(schema/defn ^:always-validate
-  registered-instances :- [JRubyInstance]
-  [context :- jruby-schemas/PoolContext]
-  (-> (get-pool context)
-      .getRegisteredElements
-      .iterator
-      iterator-seq
-      vec))
 
 (defn verify-config-found!
   [config]
@@ -284,13 +270,13 @@ add-facter-jar-to-system-classloader
   "Mark the specified environment expired, in all JRuby instances.  Resets
   the cached class info for the environment's 'tag' to nil and increments the
   'cache-generation-id' value."
-  [context :- jruby-puppet-schemas/PoolContext
+  [context :- jruby-schemas/PoolContext
    env-name :- schema/Str
    environment-class-info-cache :- (schema/atom EnvironmentClassInfoCache)]
   (swap! environment-class-info-cache
          environment-class-info-cache-with-invalidated-entry
          env-name)
-  (doseq [jruby-instance (registered-instances context)]
+  (doseq [jruby-instance (jruby-core/registered-instances context)]
     (-> jruby-instance
         :environment-registry
         (puppet-env/mark-environment-expired! env-name))))
@@ -300,11 +286,11 @@ add-facter-jar-to-system-classloader
   "Mark all cached environments expired, in all JRuby instances.  Resets the
   cached class info for all previously stored environment 'tags' to nil and
   increments the 'cache-generation-id' value."
-  [context :- jruby-puppet-schemas/PoolContext
+  [context :- jruby-schemas/PoolContext
    environment-class-info-cache :- (schema/atom EnvironmentClassInfoCache)]
   (swap! environment-class-info-cache
          (partial ks/mapvals invalidate-environment-class-info-entry))
-  (doseq [jruby-instance (registered-instances context)]
+  (doseq [jruby-instance (jruby-core/registered-instances context)]
     (-> jruby-instance
         :environment-registry
         puppet-env/mark-all-environments-expired!)))
@@ -343,7 +329,9 @@ add-facter-jar-to-system-classloader
                             (into-array Object
                                         [puppet-config puppetserver-config])
                             JRubyPuppet)]
-          (assoc jruby-instance :jruby-puppet jruby-puppet))))))
+          (-> jruby-instance
+              (assoc :jruby-puppet jruby-puppet)
+              (assoc :environment-registry env-registry)))))))
 
 (schema/defn get-initialize-scripting-container-fn
   []
