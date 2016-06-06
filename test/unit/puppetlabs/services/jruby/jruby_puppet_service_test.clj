@@ -14,13 +14,11 @@
             [puppetlabs.trapperkeeper.testutils.logging :as logging]
             [puppetlabs.services.puppet-profiler.puppet-profiler-service :as profiler]
             [puppetlabs.services.jruby.jruby-core :as jruby-core]
-            [puppetlabs.services.jruby.jruby-puppet-internal :as jruby-internal]
-            [puppetlabs.services.jruby.jruby-puppet-schemas :as jruby-schemas]
+            [puppetlabs.services.jruby.jruby-internal :as jruby-internal]
+            [puppetlabs.services.jruby.jruby-schemas :as jruby-schemas]
             [me.raynes.fs :as fs]
-            [schema.test :as schema-test]
-            [puppetlabs.services.jruby.jruby-puppet-core :as jruby-puppet-core]))
+            [schema.test :as schema-test]))
 
-(use-fixtures :each jruby-testutils/mock-pool-instance-fixture)
 (use-fixtures :once schema-test/validate-schemas)
 
 (defn jruby-service-test-config
@@ -168,7 +166,7 @@
                 (dissoc @requested :event)))
           (is (= {:sequence 2 :reason :test-jruby-events}
                 (dissoc @borrowed :instance :requested-event)))
-          (is (jruby-schemas/jruby-puppet-instance? (:instance @borrowed)))
+          (is (jruby-schemas/jruby-instance? (:instance @borrowed)))
           (is (identical? (:event @requested) (:requested-event @borrowed)))
           (is (= {:sequence 3 :reason :test-jruby-events}
                 (dissoc @returned :instance)))
@@ -197,7 +195,7 @@
               pool-context (:pool-context context)]
           (let [jrubies (jruby-testutils/drain-pool pool-context pool-size)]
             (is (= 1 (count jrubies)))
-            (is (every? jruby-schemas/jruby-puppet-instance? jrubies))
+            (is (every? jruby-schemas/jruby-instance? jrubies))
             (let [test-start-in-millis (System/currentTimeMillis)]
               (is (nil? (jruby-protocol/borrow-instance service :test-borrow-timeout-configuration)))
               (is (>= (- (System/currentTimeMillis) test-start-in-millis) timeout))
