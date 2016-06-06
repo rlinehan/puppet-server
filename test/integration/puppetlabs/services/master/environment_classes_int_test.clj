@@ -31,7 +31,9 @@
             [puppetlabs.trapperkeeper.services.authorization.authorization-service
              :as authorization]
             [puppetlabs.services.versioned-code-service.versioned-code-service
-             :as vcs])
+             :as vcs]
+            [puppetlabs.services.jruby.puppet-environments :as puppet-env]
+            [puppetlabs.services.jruby.jruby-puppet-core :as jruby-puppet-core])
   (:import (com.puppetlabs.puppetserver JRubyPuppetResponse JRubyPuppet)
            (java.util HashMap)))
 
@@ -655,11 +657,13 @@
     ;; data for an environment class info query and can suspend a request
     ;; long enough for the cached environment data to be invalidated.
     (with-redefs
-     [jruby-internal/create-pool-instance!
-      (partial jruby-testutils/create-mock-pool-instance
-               (partial create-jruby-instance-with-mock-class-info
-                        wait-atom
-                        class-info-atom))]
+     [jruby-puppet-core/get-initialize-pool-instance-fn
+      (fn [& _] (fn [jruby-instance]
+                  (-> jruby-instance
+                      (assoc :jruby-puppet (create-jruby-instance-with-mock-class-info
+                                            wait-atom
+                                            class-info-atom))
+                      (assoc :environment-registry (puppet-env/environment-registry)))))]
       (bootstrap/with-puppetserver-running-with-services
        app
        [handler/request-handler-service
