@@ -9,6 +9,7 @@
             [puppetlabs.trapperkeeper.app :as app]
             [puppetlabs.trapperkeeper.core :as tk]
             [puppetlabs.trapperkeeper.services :as services]
+            [puppetlabs.services.jruby.jruby-puppet-core :as jruby-puppet-core]
             [clojure.stacktrace :as stacktrace]
             [puppetlabs.trapperkeeper.testutils.bootstrap :as bootstrap]
             [puppetlabs.trapperkeeper.testutils.logging :as logging]
@@ -220,50 +221,8 @@
             context (services/service-context service)]
         (is (= (:borrow-timeout context) jruby-core/default-borrow-timeout))))))
 
-#_(deftest timeout-settings-applied
-  (testing "timeout settings are properly plumbed"
-    (let [connect-timeout 42
-          socket-timeout  55]
-      (bootstrap/with-app-with-config
-        app
-        default-services
-        (jruby-service-test-config-with-timeouts connect-timeout socket-timeout)
-        ;; This test doesn't technically need to wait for jruby pool
-        ;; initialization to be done but if it doesn't, the pool initialization
-        ;; may continue on during the execution of a subsequent test and
-        ;; interfere with the next test's results.  This wait ensures that the
-        ;; pool initialization agent will be dormant by the time this test
-        ;; finishes.  It should be possible to remove this when SERVER-1087 is
-        ;; resolved.
-        (jruby-testutils/wait-for-jrubies app)
-        (let [service          (app/get-service app :JRubyPuppetService)
-              context          (services/service-context service)
-              pool-context-cfg (get-in context [:pool-context :config])]
-          (is (= connect-timeout (:http-client-connect-timeout-milliseconds pool-context-cfg)))
-          (is (= socket-timeout  (:http-client-idle-timeout-milliseconds pool-context-cfg)))))))
 
-  (testing "default values are set"
-    (bootstrap/with-app-with-config
-      app
-      default-services
-      (jruby-service-test-config 1)
-      ;; This test doesn't technically need to wait for jruby pool
-      ;; initialization to be done but if it doesn't, the pool initialization
-      ;; may continue on during the execution of a subsequent test and
-      ;; interfere with the next test's results.  This wait ensures that the
-      ;; pool initialization agent will be dormant by the time this test
-      ;; finishes.  It should be possible to remove this when SERVER-1087 is
-      ;; resolved.
-      (jruby-testutils/wait-for-jrubies app)
-      (let [service          (app/get-service app :JRubyPuppetService)
-            context          (services/service-context service)
-            pool-context-cfg (get-in context [:pool-context :config])]
-        (is (= jruby-puppet-core/default-http-connect-timeout
-               (:http-client-connect-timeout-milliseconds pool-context-cfg)))
-        (is (= jruby-puppet-core/default-http-socket-timeout
-               (:http-client-idle-timeout-milliseconds pool-context-cfg)))))))
-
-#_(deftest facter-jar-loaded-during-init
+(deftest facter-jar-loaded-during-init
   (testing (str "facter jar found from the ruby load path is properly "
              "loaded into the system classpath")
     (let [temp-dir (ks/temp-dir)
@@ -289,7 +248,7 @@
         (is (true? (some #(= facter-jar (.getFile %))
                      (.getURLs (ClassLoader/getSystemClassLoader)))))))))
 
-#_(deftest environment-class-info-tags
+(deftest environment-class-info-tags
   (testing "environment-class-info-tags cache has proper data"
     (bootstrap/with-app-with-config
      app
