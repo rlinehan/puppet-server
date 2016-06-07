@@ -4,6 +4,7 @@
             [puppetlabs.services.protocols.jruby-puppet :as jruby-protocol]
             [puppetlabs.services.jruby.jruby-testutils :as jruby-testutils]
             [puppetlabs.services.jruby.jruby-puppet-service :refer :all]
+            [puppetlabs.services.jruby.jruby-pool-manager-service :refer [jruby-pool-manager-service]]
             [puppetlabs.kitchensink.core :as ks]
             [puppetlabs.kitchensink.testutils :as ks-testutils]
             [puppetlabs.trapperkeeper.app :as app]
@@ -35,6 +36,7 @@
 
 (def default-services
   [jruby-puppet-pooled-service
+   jruby-pool-manager-service
    profiler/puppet-profiler-service])
 
 (deftest test-error-during-init

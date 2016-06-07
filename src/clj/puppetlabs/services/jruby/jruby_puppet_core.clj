@@ -64,12 +64,6 @@
        (max 1)
        (min 4)))
 
-(schema/defn ^:always-validate
-  get-pool-state :- jruby-puppet-schemas/PoolState
-  "Gets the PoolState from the pool context."
-  [context :- jruby-puppet-schemas/PoolContext]
-  (jruby-internal/get-pool-state context))
-
 (defn verify-config-found!
   [config]
   (if (or (not (map? config))

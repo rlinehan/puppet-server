@@ -2,6 +2,7 @@
   (:require [clojure.test :refer :all]
             [puppetlabs.kitchensink.core :as ks]
             [puppetlabs.services.jruby.jruby-testutils :as jruby-testutils]
+            [puppetlabs.services.jruby.jruby-puppet-core :as jruby-puppet]
             [puppetlabs.services.jruby.jruby-puppet-internal :as jruby-internal]
             [puppetlabs.services.jruby.puppet-environments :as puppet-env]
             [me.raynes.fs :as fs]
@@ -61,7 +62,7 @@
                         (expected-class-info
                          (str name "2"))]}]))))))
 
-(deftest ^:integration class-info-test
+#_(deftest ^:integration class-info-test
   (testing "class info properly enumerated for"
     (let [pool (JRubyPool. 1)
           code-dir (ks/temp-dir)

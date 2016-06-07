@@ -13,6 +13,7 @@
             [puppetlabs.trapperkeeper.app :as tk-app]
             [puppetlabs.trapperkeeper.services :refer [defservice service]]
             [puppetlabs.services.jruby.jruby-puppet-service :as jruby-service]
+            [puppetlabs.services.jruby.jruby-pool-manager-service :as jruby-utils]
             [puppetlabs.puppetserver.bootstrap-testutils :as jruby-bootstrap]
             [puppetlabs.services.protocols.versioned-code :as vc]
             [puppetlabs.services.puppet-profiler.puppet-profiler-service :as profiler]
@@ -300,6 +301,7 @@
                                                nil))
             services [master-service/master-service
                       jruby-service/jruby-puppet-pooled-service
+                      jruby-utils/jruby-pool-manager-service
                       profiler/puppet-profiler-service
                       handler-service/request-handler-service
                       ps-config/puppet-server-config-service

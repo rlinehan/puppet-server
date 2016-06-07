@@ -79,13 +79,6 @@
 (def default-flush-fn
   identity)
 
-(defn create-pool-instance
-  ([]
-   (create-pool-instance (jruby-puppet-config {:max-active-instances 1})))
-  ([config]
-   (let [pool (jruby-internal/instantiate-free-pool 1)]
-     (jruby-puppet-internal/create-pool-instance! pool 1 config default-flush-fn default-profiler))))
-
 (defn create-mock-jruby-instance
   "Creates a mock implementation of the JRubyPuppet interface."
   []
