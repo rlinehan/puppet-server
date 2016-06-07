@@ -21,7 +21,8 @@
                           jruby/JRubyPuppetService
                           [[:ConfigService get-config]
                            [:ShutdownService shutdown-on-error]
-                           [:PuppetProfilerService get-profiler]]
+                           [:PuppetProfilerService get-profiler]
+                           [:PoolManagerService create-pool]]
   (init
     [this context]
     (let [config            (core/initialize-config (get-config))
@@ -48,8 +49,7 @@
                                       :initialize-pool-instance (core/get-initialize-pool-instance-fn config profiler)
                                       :initialize-scripting-container (core/get-initialize-scripting-container-fn)
                                       :cleanup identity}}
-            pool-context (jruby-core/create-pool-context jruby-config)]
-        (jruby-agents/send-prime-pool! pool-context)
+            pool-context (create-pool jruby-config)]
         (-> context
             (assoc :pool-context pool-context)
             (assoc :borrow-timeout (:borrow-timeout config))

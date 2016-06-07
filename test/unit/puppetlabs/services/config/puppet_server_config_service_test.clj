@@ -4,6 +4,7 @@
             [puppetlabs.services.config.puppet-server-config-service :refer :all]
             [puppetlabs.services.config.puppet-server-config-core :as core]
             [puppetlabs.services.jruby.jruby-puppet-service :refer [jruby-puppet-pooled-service]]
+            [puppetlabs.services.jruby.jruby-pool-manager-service :refer [jruby-pool-manager-service]]
             [puppetlabs.services.jruby.jruby-testutils :as jruby-testutils]
             [puppetlabs.services.puppet-profiler.puppet-profiler-service :as profiler]
             [puppetlabs.trapperkeeper.app :as tk-app]
@@ -21,7 +22,7 @@
 
 (def service-and-deps
   [puppet-server-config-service jruby-puppet-pooled-service jetty9-service
-   profiler/puppet-profiler-service])
+   profiler/puppet-profiler-service jruby-pool-manager-service])
 
 (def test-resources-dir
   "./dev-resources/puppetlabs/services/config/puppet_server_config_service_test")
