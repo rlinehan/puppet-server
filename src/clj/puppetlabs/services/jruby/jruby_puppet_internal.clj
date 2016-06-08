@@ -1,18 +1,9 @@
 (ns puppetlabs.services.jruby.jruby-puppet-internal
   (:require [schema.core :as schema]
             [puppetlabs.services.jruby.jruby-puppet-schemas :as jruby-schemas]
-            [puppetlabs.services.jruby.puppet-environments :as puppet-env]
-            [clojure.tools.logging :as log]
             [puppetlabs.kitchensink.core :as ks])
-  (:import (com.puppetlabs.puppetserver PuppetProfiler JRubyPuppet)
-           (com.puppetlabs.puppetserver.pool JRubyPool)
-           (puppetlabs.services.jruby.jruby_puppet_schemas JRubyPuppetInstance PoisonPill ShutdownPoisonPill)
-           (java.util HashMap)
-           (org.jruby CompatVersion Main RubyInstanceConfig RubyInstanceConfig$CompileMode)
-           (org.jruby.embed LocalContextScope)
-           (java.util.concurrent TimeUnit)
-           (clojure.lang IFn)
-           (com.puppetlabs.puppetserver.jruby ScriptingContainer)))
+  (:import (java.util HashMap)
+           (org.jruby CompatVersion Main RubyInstanceConfig RubyInstanceConfig$CompileMode)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Definitions

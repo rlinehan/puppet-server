@@ -8,7 +8,7 @@
             [puppetlabs.trapperkeeper.services :as tk-services]
             [puppetlabs.services.protocols.jruby-puppet :as jruby]
             [slingshot.slingshot :as sling]
-            [puppetlabs.services.jruby.jruby-puppet-schemas :as jruby-schemas]
+            [puppetlabs.services.jruby.jruby-schemas :as jruby-schemas]
             [puppetlabs.kitchensink.core :as ks]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -48,7 +48,7 @@
                           :lifecycle {:shutdown-on-error agent-shutdown-fn
                                       :initialize-pool-instance (core/get-initialize-pool-instance-fn config profiler)
                                       :initialize-scripting-container (core/get-initialize-scripting-container-fn)
-                                      :cleanup identity}}
+                                      :cleanup (fn [instance] (.terminate (:jruby-puppet instance)))}}
             pool-context (create-pool jruby-config)]
         (-> context
             (assoc :pool-context pool-context)

@@ -60,11 +60,10 @@
   [handler jruby-service]
   (fn [request]
     (jruby/with-jruby-puppet
-     jruby-instance
+     jruby-puppet
      jruby-service
      {:request (dissoc request :ssl-client-cert)}
-
-     (handler (assoc request :jruby-instance jruby-instance)))))
+     (handler (assoc request :jruby-instance jruby-puppet)))))
 
 (defn get-environment-from-request
   "Gets the environment from the URL or query string of a request."

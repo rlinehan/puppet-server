@@ -1,19 +1,15 @@
 (ns puppetlabs.services.jruby.jruby-pool-int-test
   (:require [clojure.test :refer :all]
             [schema.test :as schema-test]
-            [puppetlabs.trapperkeeper.testutils.bootstrap :as tk-testutils]
             [puppetlabs.services.jruby.jruby-testutils :as jruby-testutils]
             [puppetlabs.trapperkeeper.app :as tk-app]
             [puppetlabs.trapperkeeper.services :as tk-services]
             [puppetlabs.services.protocols.jruby-puppet :as jruby-protocol]
+            [puppetlabs.services.jruby.jruby-pool-manager-service :refer [jruby-pool-manager-service]]
             [puppetlabs.puppetserver.bootstrap-testutils :as bootstrap]
             [puppetlabs.services.jruby.jruby-puppet-service :as jruby]
             [puppetlabs.services.puppet-profiler.puppet-profiler-service :as profiler]
             [puppetlabs.trapperkeeper.services.webserver.jetty9-service :as jetty9]
-            [puppetlabs.trapperkeeper.services.webrouting.webrouting-service :as webrouting]
-            [puppetlabs.services.puppet-admin.puppet-admin-service :as puppet-admin]
-            [puppetlabs.services.ca.certificate-authority-disabled-service :as ca]
-            [puppetlabs.trapperkeeper.services.authorization.authorization-service :as authorization]
             [puppetlabs.http.client.sync :as http-client]
             [me.raynes.fs :as fs]
             [puppetlabs.trapperkeeper.internal :as tk-internal]
@@ -198,13 +194,12 @@
                                           testutils/catalog-request-options)]
          (is (= 200 (:status get-results))))))))
 
-#_(deftest ^:integration test-503-when-app-shuts-down
+(deftest ^:integration test-503-when-app-shuts-down
   (testing "During a shutdown the agent requests result in a 503 response"
     (ks-testutils/with-no-jvm-shutdown-hooks
      (let [services [jruby/jruby-puppet-pooled-service profiler/puppet-profiler-service
                      handler-service/request-handler-service ps-config/puppet-server-config-service
-                     jetty9/jetty9-service
-                     vcs/versioned-code-service]
+                     jetty9/jetty9-service vcs/versioned-code-service jruby-pool-manager-service]
            config (-> (jruby-testutils/jruby-puppet-tk-config
                        (jruby-testutils/jruby-puppet-config {:max-active-instances 2
                                                              :borrow-timeout
@@ -234,7 +229,7 @@
          (logging/with-test-logging
           (is (= 503 (:status (ping-environment))))))))))
 
-#_(deftest ^:integration test-503-when-jruby-is-first-to-shutdown
+(deftest ^:integration test-503-when-jruby-is-first-to-shutdown
   (testing "During a shutdown requests result in 503 http responses"
     (bootstrap/with-puppetserver-running
      app
