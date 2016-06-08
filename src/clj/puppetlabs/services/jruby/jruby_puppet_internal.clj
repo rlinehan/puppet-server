@@ -177,11 +177,12 @@
 (schema/defn ^:always-validate
   cleanup-pool-instance!
   "Cleans up and cleanly terminates a JRubyPuppet instance and removes it from the pool."
-  [{:keys [scripting-container jruby-puppet pool] :as instance} :- JRubyPuppetInstance]
-  (.unregister pool instance)
-  (.terminate jruby-puppet)
-  (.terminate scripting-container)
-  (log/infof "Cleaned up old JRuby instance with id %s." (:id instance)))
+  [{:keys [scripting-container jruby-puppet] :as instance} :- JRubyPuppetInstance]
+  (let [pool (get-in instance [:internal :pool])]
+    (.unregister pool instance)
+    (.terminate jruby-puppet)
+    (.terminate scripting-container)
+    (log/infof "Cleaned up old JRuby instance with id %s." (:id instance))))
 
 (schema/defn ^:always-validate
   create-pool-instance! :- JRubyPuppetInstance
@@ -220,20 +221,20 @@
         http-client-idle-timeout-milliseconds)
       (.put puppetserver-config "use_legacy_auth_conf" use-legacy-auth-conf)
       (let [instance (jruby-schemas/map->JRubyPuppetInstance
-                       {:pool                 pool
-                        :id                   id
-                        :max-requests         (:max-requests-per-instance config)
-                        :flush-instance-fn    flush-instance-fn
-                        :state                (atom {:borrow-count 0})
-                        :jruby-puppet         (.callMethodWithArgArray
-                                               scripting-container
-                                               ruby-puppet-class
-                                               "new"
-                                               (into-array Object
-                                                           [puppet-config puppetserver-config])
-                                               JRubyPuppet)
-                        :scripting-container  scripting-container
-                        :environment-registry env-registry})]
+                      {:id id
+                       :internal {:flush-instance-fn flush-instance-fn
+                                  :pool pool
+                                  :max-requests (:max-requests-per-instance config)
+                                  :state (atom {:borrow-count 0})}
+                       :jruby-puppet (.callMethodWithArgArray
+                                      scripting-container
+                                      ruby-puppet-class
+                                      "new"
+                                      (into-array Object
+                                                  [puppet-config puppetserver-config])
+                                      JRubyPuppet)
+                       :scripting-container scripting-container
+                       :environment-registry env-registry})]
         (.register pool instance)
         instance))))
 
@@ -241,7 +242,7 @@
   get-pool-state :- jruby-schemas/PoolState
   "Gets the PoolState from the pool context."
   [context :- jruby-schemas/PoolContext]
-  @(:pool-state context))
+  @(get-in context [:internal :pool-state]))
 
 (schema/defn ^:always-validate
   get-pool :- jruby-schemas/pool-queue-type
@@ -314,9 +315,10 @@
   "Return a borrowed pool instance to its free pool."
   [instance :- jruby-schemas/JRubyPuppetInstanceOrPill]
   (if (jruby-schemas/jruby-puppet-instance? instance)
-    (let [new-state (swap! (:state instance)
+    (let [new-state (swap! (get-in instance [:internal :state])
                            update-in [:borrow-count] inc)
-          {:keys [max-requests flush-instance-fn pool]} instance]
+          flush-instance-fn (get-in instance [:internal :flush-instance-fn])
+          {:keys [max-requests pool]} (:internal instance)]
       (if (and (pos? max-requests)
                (>= (:borrow-count new-state) max-requests))
         (do

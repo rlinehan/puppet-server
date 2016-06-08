@@ -133,11 +133,11 @@
 
 (def PoolContext
   "The data structure that stores all JRubyPuppet pools and the original configuration."
-  {:config                JRubyPuppetConfig
-   :profiler              (schema/maybe PuppetProfiler)
-   :pool-agent            JRubyPoolAgent
-   :flush-instance-agent  JRubyPoolAgent
-   :pool-state            PoolStateContainer})
+  {:config JRubyPuppetConfig
+   :profiler (schema/maybe PuppetProfiler)
+   :internal {:pool-agent JRubyPoolAgent
+              :flush-instance-agent JRubyPoolAgent
+              :pool-state PoolStateContainer}})
 
 (def JRubyInstanceState
   "State metadata for an individual JRubyPuppet instance"
@@ -149,21 +149,24 @@
                      (nil? (schema/check JRubyInstanceState @%)))
                'JRubyInstanceState))
 
+(def JRubyPuppetInstanceInternal
+  {:flush-instance-fn IFn
+   :pool pool-queue-type
+   :max-requests schema/Int
+   :state JRubyInstanceStateContainer})
+
 ;; A record representing an individual entry in the JRubyPuppet pool.
 (schema/defrecord JRubyPuppetInstance
-                  [pool :- pool-queue-type
+                  [internal :- JRubyPuppetInstanceInternal
                    id :- schema/Int
-                   max-requests :- schema/Int
-                   flush-instance-fn :- IFn
-                   state :- JRubyInstanceStateContainer
                    jruby-puppet :- JRubyPuppet
                    scripting-container :- ScriptingContainer
                    environment-registry :- (schema/both
                                              EnvironmentRegistry
                                              (schema/pred
                                                #(satisfies? puppet-env/EnvironmentStateContainer %)))]
-                  Object
-                  (toString [this] (format "%s@%s {:id %s :state (Atom: %s)}"
+  ;Object
+                  #_(toString [this] (format "%s@%s {:id %s :state (Atom: %s)}"
                                            (.getName JRubyPuppetInstance)
                                            (Integer/toHexString (.hashCode this))
                                            id

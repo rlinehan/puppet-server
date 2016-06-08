@@ -88,7 +88,7 @@
 (defn add-watch-for-flush-complete
   [pool-context]
   (let [flush-complete (promise)]
-    (add-watch (:pool-agent pool-context) :flush-callback
+    (add-watch (get-in pool-context [:internal :pool-agent]) :flush-callback
                (fn [k a old-state new-state]
                  (when (= k :flush-callback)
                    (remove-watch a :flush-callback)
@@ -166,7 +166,7 @@
   (let [max-borrow-wait-count 100000]
     (loop [instance (jruby-protocol/borrow-instance jruby-service :borrow-until-desired-borrow-count)
            loop-count 0]
-      (let [borrow-count (:borrow-count @(:state instance))]
+      (let [borrow-count (:borrow-count @(get-in instance [:internal :state]))]
         (jruby-protocol/return-instance jruby-service instance :borrow-until-desired-borrow-count)
         (cond
           (= (inc borrow-count) desired-borrow-count) true
@@ -311,7 +311,7 @@
               ;; now we grab a reference to that instance and hold onto it for later.
               (let [instance2 (jruby-protocol/borrow-instance jruby-service
                                 :max-requests-flush-while-pool-flush-in-progress-test)]
-                (is (= 9 (:borrow-count @(:state instance2))))
+                (is (= 9 (:borrow-count @(get-in instance2 [:internal :state]))))
 
                 ;; trigger a flush
                 (is (true? (trigger-flush ssl-options)))

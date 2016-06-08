@@ -40,7 +40,7 @@
                    set)))
         (jruby-protocol/flush-jruby-pool! jruby-service)
         ; wait until the flush is complete
-        (await (:pool-agent pool-context))
+        (await (get-in pool-context [:internal :pool-agent]))
         (is (every? true?
                     (jruby-testutils/reduce-over-jrubies!
                       pool-context
@@ -66,12 +66,12 @@
                                     (deliver pool-state-swapped true)))]
         ; borrow an instance so we know that the pool is ready
         (jruby/with-jruby-puppet jruby-puppet jruby-service :retry-poison-pill-test)
-        (add-watch (:pool-state pool-context) :pool-state-watch pool-state-watch-fn)
+        (add-watch (get-in pool-context [:internal :pool-state]) :pool-state-watch pool-state-watch-fn)
         (jruby-protocol/flush-jruby-pool! jruby-service)
         ; wait until we know the new pool has been swapped in
         @pool-state-swapped
         ; wait until the flush is complete
-        (await (:pool-agent pool-context))
+        (await (get-in pool-context [:internal :pool-agent]))
         (let [old-pool-instance (jruby-internal/borrow-from-pool!*
                                   jruby-internal/borrow-without-timeout-fn
                                   old-pool)]
@@ -130,5 +130,5 @@
               context (tk-services/service-context jruby-service)]
           (jruby-protocol/flush-jruby-pool! jruby-service)
           ; wait until the flush is complete
-          (await (get-in context [:pool-context :pool-agent]))
+          (await (get-in context [:pool-context :internal :pool-agent]))
           (is (logged? #"Terminating Master")))))))

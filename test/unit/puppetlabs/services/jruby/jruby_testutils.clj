@@ -115,11 +115,11 @@
     flush-instance-fn :- IFn
     _ :- (schema/maybe PuppetProfiler)]
    (let [instance (jruby-schemas/map->JRubyPuppetInstance
-                   {:pool pool
-                    :id id
-                    :max-requests (:max-requests-per-instance config)
-                    :flush-instance-fn flush-instance-fn
-                    :state (atom {:borrow-count 0})
+                   {:id id
+                    :internal {:flush-instance-fn flush-instance-fn
+                               :pool pool
+                               :max-requests (:max-requests-per-instance config)
+                               :state (atom {:borrow-count 0})}
                     :jruby-puppet (mock-jruby-instance-creator-fn)
                     :scripting-container (ScriptingContainer.
                                           LocalContextScope/SINGLETHREAD)
@@ -180,8 +180,7 @@
                          tk-service/service-context
                          :pool-context)
         num-jrubies (-> pool-context
-                        :pool-state
-                        deref
+                        jruby-core/get-pool-state
                         :size)]
     (while (< (count (jruby-core/registered-instances pool-context))
               num-jrubies)

@@ -222,13 +222,13 @@
   [config :- jruby-schemas/JRubyPuppetConfig
    profiler :- (schema/maybe PuppetProfiler)
    agent-shutdown-fn :- (schema/pred ifn?)]
-  {:config                config
-   :profiler              profiler
-   :pool-agent            (jruby-agents/pool-agent agent-shutdown-fn)
-   ;; For an explanation of why we need a separate agent for the `flush-instance`,
-   ;; see the comments in jruby-puppet-agents/send-flush-instance
-   :flush-instance-agent  (jruby-agents/pool-agent agent-shutdown-fn)
-   :pool-state            (atom (jruby-internal/create-pool-from-config config))})
+  {:config config
+   :profiler profiler
+   :internal {:pool-agent (jruby-agents/pool-agent agent-shutdown-fn)
+              ;; For an explanation of why we need a separate agent for the `flush-instance`,
+              ;; see the comments in jruby-puppet-agents/send-flush-instance
+              :flush-instance-agent (jruby-agents/pool-agent agent-shutdown-fn)
+              :pool-state (atom (jruby-internal/create-pool-from-config config))}})
 
 (schema/defn ^:always-validate
   free-instance-count
@@ -241,7 +241,7 @@
   instance-state :- jruby-schemas/JRubyInstanceState
   "Get the state metadata for a JRubyPuppet instance."
   [jruby-puppet :- (schema/pred jruby-schemas/jruby-puppet-instance?)]
-  @(:state jruby-puppet))
+  @(get-in jruby-puppet [:internal :state]))
 
 (schema/defn ^:always-validate
   borrow-from-pool :- jruby-schemas/JRubyPuppetInstanceOrPill
