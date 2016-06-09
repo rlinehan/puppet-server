@@ -127,9 +127,7 @@
     * :use-legacy-auth-conf - Whether to use the legacy core Puppet auth.conf
         (true) or trapperkeeper-authorization (false) to authorize requests
         being made to core Puppet endpoints."
-  {:ruby-load-path [schema/Str]
-   :gem-home schema/Str
-   :master-conf-dir (schema/maybe schema/Str)
+  {:master-conf-dir (schema/maybe schema/Str)
    :master-code-dir (schema/maybe schema/Str)
    :master-var-dir (schema/maybe schema/Str)
    :master-run-dir (schema/maybe schema/Str)

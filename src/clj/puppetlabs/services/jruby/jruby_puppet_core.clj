@@ -7,13 +7,12 @@
             [puppetlabs.services.jruby.jruby-puppet-schemas :as jruby-puppet-schemas]
             [puppetlabs.services.jruby.jruby-schemas :as jruby-schemas]
             [puppetlabs.services.jruby.jruby-core :as jruby-core]
+            [puppetlabs.services.puppet-profiler.puppet-profiler-core :as profiler-core]
             [puppetlabs.services.jruby.puppet-environments :as puppet-env]
             [puppetlabs.services.jruby.jruby-puppet-internal :as jruby-internal]
             [clojure.java.io :as io]
             [clojure.tools.logging :as log])
-  (:import (puppetlabs.services.jruby.jruby_puppet_schemas JRubyPuppetInstance)
-           (puppetlabs.services.jruby.jruby_schemas JRubyInstance)
-           (com.puppetlabs.puppetserver PuppetProfiler JRubyPuppet)
+  (:import (com.puppetlabs.puppetserver PuppetProfiler JRubyPuppet)
            (clojure.lang IFn)
            (java.util HashMap)))
 
@@ -94,6 +93,67 @@ add-facter-jar-to-system-classloader
       (ks-classpath/add-classpath facter-jar))
     (log/info "Facter jar not found in ruby load path")))
 
+(schema/defn get-initialize-pool-instance-fn :- IFn
+  [config
+   profiler :- (schema/maybe PuppetProfiler)]
+  (fn [jruby-instance]
+    (let [{:keys [ruby-load-path http-client-ssl-protocols
+                  http-client-cipher-suites
+                  http-client-connect-timeout-milliseconds
+                  http-client-idle-timeout-milliseconds
+                  use-legacy-auth-conf]} config]
+      (when-not ruby-load-path
+        (throw (Exception.
+                "JRuby service missing config value 'ruby-load-path'")))
+      (let [scripting-container (:scripting-container jruby-instance)
+            ruby-puppet-class (.runScriptlet scripting-container "Puppet::Server::Master")
+            puppet-config (jruby-internal/config->puppet-config config)
+            puppetserver-config (HashMap.)
+            env-registry (puppet-env/environment-registry)]
+        (when http-client-ssl-protocols
+          (.put puppetserver-config "ssl_protocols" (into-array String http-client-ssl-protocols)))
+        (when http-client-cipher-suites
+          (.put puppetserver-config "cipher_suites" (into-array String http-client-cipher-suites)))
+        (doto puppetserver-config
+          (.put "profiler" profiler)
+          (.put "environment_registry" env-registry)
+          (.put "http_connect_timeout_milliseconds" http-client-connect-timeout-milliseconds)
+          (.put "http_idle_timeout_milliseconds" http-client-idle-timeout-milliseconds)
+          (.put "use_legacy_auth_conf" use-legacy-auth-conf))
+        (let [jruby-puppet (.callMethodWithArgArray
+                            scripting-container
+                            ruby-puppet-class
+                            "new"
+                            (into-array Object
+                                        [puppet-config puppetserver-config])
+                            JRubyPuppet)]
+          (-> jruby-instance
+              (assoc :jruby-puppet jruby-puppet)
+              (assoc :environment-registry env-registry)))))))
+
+(schema/defn initialize-scripting-container-fn
+  [scripting-container
+   config :- jruby-schemas/JRubyConfig]
+  (doto scripting-container
+    (.setEnvironment (jruby-internal/managed-environment (jruby-internal/get-system-env) (:gem-home config)))
+    (.runScriptlet "require 'jar-dependencies'")
+    (.runScriptlet "require 'puppet/server/master'"))
+  scripting-container)
+
+(schema/defn cleanup-fn
+  [instance]
+  (.terminate (:jruby-puppet instance)))
+
+(schema/defn extract-jruby-config
+  [config :- {schema/Keyword schema/Any}]
+  (into {} (for [[key _] jruby-schemas/JRubyConfig]
+             {key (get config key)})))
+
+(schema/defn extract-puppet-config
+  [config :- {schema/Keyword schema/Any}]
+  (into {} (for [[key _] jruby-puppet-schemas/JRubyPuppetConfig]
+             {key (get config key)})))
+
 (schema/defn ^:always-validate
   initialize-config :- jruby-puppet-schemas/JRubyPuppetConfig
   [config :- {schema/Keyword schema/Any}]
@@ -119,6 +179,21 @@ add-facter-jar-to-system-classloader
       (update-in [:max-requests-per-instance] #(or % 0))
       (update-in [:use-legacy-auth-conf] #(or % (nil? %)))
       (dissoc :environment-class-cache-enabled)))
+
+(schema/defn create-jruby-config :- jruby-schemas/JRubyConfig
+  [jruby-puppet-config :- jruby-puppet-schemas/JRubyPuppetConfig
+   agent-shutdown-fn :- IFn
+   profiler :- (schema/maybe PuppetProfiler)]
+  (let [puppet-only-config (extract-puppet-config jruby-puppet-config)
+        initialize-pool-instance-fn (get-initialize-pool-instance-fn puppet-only-config profiler)
+        lifecycle-fns {:shutdown-on-error agent-shutdown-fn
+                       :initialize-pool-instance initialize-pool-instance-fn
+                       :initialize-scripting-container initialize-scripting-container-fn
+                       :cleanup cleanup-fn}
+        jruby-specific-config (extract-jruby-config jruby-puppet-config)
+        modified-jruby-config (assoc jruby-specific-config :ruby-load-path (jruby-internal/managed-load-path
+                                                                            (:ruby-load-path jruby-specific-config)))]
+    (merge (jruby-core/initialize-config modified-jruby-config) {:lifecycle lifecycle-fns})))
 
 
 (schema/defn ^:always-validate cli-ruby! :- jruby-puppet-schemas/JRubyMainStatus
@@ -288,50 +363,3 @@ add-facter-jar-to-system-classloader
     (-> jruby-instance
         :environment-registry
         puppet-env/mark-all-environments-expired!)))
-
-(schema/defn get-initialize-pool-instance-fn :- IFn
-  [config
-   profiler :- (schema/maybe PuppetProfiler)]
-  (fn [jruby-instance]
-    (let [{:keys [ruby-load-path http-client-ssl-protocols
-                  http-client-cipher-suites
-                  http-client-connect-timeout-milliseconds
-                  http-client-idle-timeout-milliseconds
-                  use-legacy-auth-conf]} config]
-      (when-not ruby-load-path
-        (throw (Exception.
-                "JRuby service missing config value 'ruby-load-path'")))
-      (let [scripting-container (:scripting-container jruby-instance)
-            ruby-puppet-class (.runScriptlet scripting-container "Puppet::Server::Master")
-            puppet-config (jruby-internal/config->puppet-config config)
-            puppetserver-config (HashMap.)
-            env-registry (puppet-env/environment-registry)]
-        (when http-client-ssl-protocols
-          (.put puppetserver-config "ssl_protocols" (into-array String http-client-ssl-protocols)))
-        (when http-client-cipher-suites
-          (.put puppetserver-config "cipher_suites" (into-array String http-client-cipher-suites)))
-        (doto puppetserver-config
-          (.put "profiler" profiler)
-          (.put "environment_registry" env-registry)
-          (.put "http_connect_timeout_milliseconds" http-client-connect-timeout-milliseconds)
-          (.put "http_idle_timeout_milliseconds" http-client-idle-timeout-milliseconds)
-          (.put "use_legacy_auth_conf" use-legacy-auth-conf))
-        (let [jruby-puppet (.callMethodWithArgArray
-                            scripting-container
-                            ruby-puppet-class
-                            "new"
-                            (into-array Object
-                                        [puppet-config puppetserver-config])
-                            JRubyPuppet)]
-          (-> jruby-instance
-              (assoc :jruby-puppet jruby-puppet)
-              (assoc :environment-registry env-registry)))))))
-
-(schema/defn get-initialize-scripting-container-fn
-  []
-  (fn [scripting-container config]
-    (doto scripting-container
-      (.setEnvironment (jruby-internal/managed-environment (jruby-internal/get-system-env) (:gem-home config)))
-      (.runScriptlet "require 'jar-dependencies'")
-      (.runScriptlet "require 'puppet/server/master'"))
-    scripting-container))

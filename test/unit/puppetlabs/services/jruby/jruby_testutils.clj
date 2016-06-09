@@ -47,16 +47,20 @@
   differs slightly from the raw format that would be read from config files
   on disk.)"
   ([]
-    (jruby-puppet-core/initialize-config
-      {:jruby-puppet
-       {:ruby-load-path  ruby-load-path
-        :gem-home        gem-home
-        :master-conf-dir conf-dir
-        :master-code-dir code-dir
-        :master-var-dir  var-dir
-        :master-run-dir  run-dir
-        :master-log-dir  log-dir
-        :use-legacy-auth-conf false}}))
+   (let [combined-configs
+         (merge (jruby-puppet-core/initialize-config
+                 {:jruby-puppet
+                  {:ruby-load-path ruby-load-path
+                   :gem-home gem-home
+                   :master-conf-dir conf-dir
+                   :master-code-dir code-dir
+                   :master-var-dir var-dir
+                   :master-run-dir run-dir
+                   :master-log-dir log-dir
+                   :use-legacy-auth-conf false}})
+                (jruby-core/initialize-config {:ruby-load-path ruby-load-path
+                                               :gem-home gem-home}))]
+     (dissoc combined-configs :lifecycle)))
   ([options]
    (merge (jruby-puppet-config) options)))
 

@@ -39,16 +39,7 @@
                   "definitions in the /etc/puppetlabs/puppet/auth.conf file to"
                   "the /etc/puppetlabs/puppetserver/conf.d/auth.conf file."))
       (core/add-facter-jar-to-system-classloader (:ruby-load-path config))
-      (let [jruby-config {:ruby-load-path (internal/managed-load-path (:ruby-load-path config))
-                          :gem-home (:gem-home config)
-                          :compile-mode (:compile-mode config)
-                          :borrow-timeout (:borrow-timeout config)
-                          :max-active-instances (:max-active-instances config)
-                          :max-requests-per-instance (:max-requests-per-instance config)
-                          :lifecycle {:shutdown-on-error agent-shutdown-fn
-                                      :initialize-pool-instance (core/get-initialize-pool-instance-fn config profiler)
-                                      :initialize-scripting-container (core/get-initialize-scripting-container-fn)
-                                      :cleanup (fn [instance] (.terminate (:jruby-puppet instance)))}}
+      (let [jruby-config (core/create-jruby-config config agent-shutdown-fn profiler)
             pool-context (create-pool jruby-config)]
         (-> context
             (assoc :pool-context pool-context)
