@@ -2,6 +2,7 @@
   (:require [clojure.tools.logging :as log]
             [ring.util.response :as ring-response]
             [slingshot.slingshot :as sling]
+            [puppetlabs.services.protocols.jruby-puppet :as jruby-puppet]
             [puppetlabs.services.jruby.jruby-puppet-service :as jruby]
             [schema.core :as schema]
             [puppetlabs.puppetserver.common :as ps-common]))
@@ -24,14 +25,14 @@
   "Determine if the supplied slingshot message is for a 'service unavailable'"
   (when (map? x)
     (= (:type x)
-       :puppetlabs.services.jruby.jruby-puppet-service/service-unavailable)))
+       :puppetlabs.services.jruby.jruby-core/service-unavailable)))
 
 (defn jruby-timeout?
   "Determine if the supplied slingshot message is for a JRuby borrow timeout."
   [x]
   (when (map? x)
     (= (:type x)
-       :puppetlabs.services.jruby.jruby-puppet-service/jruby-timeout)))
+       :puppetlabs.services.jruby.jruby-core/jruby-timeout)))
 
 (defn output-error
   [{:keys [uri]} {:keys [message]} http-status]
@@ -59,11 +60,13 @@
   it available in the request as `:jruby-instance`"
   [handler jruby-service]
   (fn [request]
-    (jruby/with-jruby-puppet
-     jruby-puppet
-     jruby-service
-     {:request (dissoc request :ssl-client-cert)}
-     (handler (assoc request :jruby-instance jruby-puppet)))))
+    (let [pool-context (jruby-puppet/get-pool-context jruby-service)]
+     (jruby/with-jruby-instance
+      jruby-instance
+      pool-context
+      {:request (dissoc request :ssl-client-cert)}
+      (let [jruby-puppet (:jruby-puppet jruby-instance)]
+        (handler (assoc request :jruby-instance jruby-puppet)))))))
 
 (defn get-environment-from-request
   "Gets the environment from the URL or query string of a request."

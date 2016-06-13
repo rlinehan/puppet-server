@@ -1,4 +1,4 @@
-(ns puppetlabs.services.jruby.jruby-pool-int-test
+(ns puppetlabs.services.jruby.jruby-puppet-pool-int-test
   (:require [clojure.test :refer :all]
             [schema.test :as schema-test]
             [puppetlabs.services.jruby.jruby-testutils :as jruby-testutils]

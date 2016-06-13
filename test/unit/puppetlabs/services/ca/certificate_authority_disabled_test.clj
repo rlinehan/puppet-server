@@ -10,7 +10,9 @@
             [puppetlabs.trapperkeeper.app :as tk-app]
             [puppetlabs.trapperkeeper.testutils.logging :as logutils]
             [puppetlabs.trapperkeeper.testutils.bootstrap :as tk-testutils]
-            [puppetlabs.trapperkeeper.services.authorization.authorization-service :as tk-auth]))
+            [puppetlabs.trapperkeeper.services.authorization.authorization-service :as tk-auth]
+            [puppetlabs.services.protocols.jruby-puppet :as jruby-puppet-protocol]
+            [puppetlabs.services.jruby.jruby-puppet-service :as jruby]))
 
 
 
@@ -40,8 +42,11 @@
             (assoc-in [:jruby-puppet :master-conf-dir]
                       puppet-conf-dir))
 
-        (let [jruby-service (tk-app/get-service app :JRubyPuppetService)]
-          (jruby-puppet/with-jruby-puppet
-            jruby-puppet jruby-service :ca-disabled-files-test
-            (is (not (nil? (fs/list-dir ssl-dir))))
-            (is (empty? (fs/list-dir (str ssl-dir "/ca"))))))))))
+        (let [jruby-service (tk-app/get-service app :JRubyPuppetService)
+              pool-context (jruby-puppet-protocol/get-pool-context jruby-service)]
+          (jruby/with-jruby-instance
+           jruby-puppet
+           pool-context
+           :ca-disabled-files-test
+           (is (not (nil? (fs/list-dir ssl-dir))))
+           (is (empty? (fs/list-dir (str ssl-dir "/ca"))))))))))
