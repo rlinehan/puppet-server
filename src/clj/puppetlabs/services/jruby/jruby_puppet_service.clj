@@ -2,12 +2,9 @@
   (:require [clojure.tools.logging :as log]
             [puppetlabs.services.jruby.jruby-puppet-core :as core]
             [puppetlabs.services.jruby.jruby-core :as jruby-core]
-            [puppetlabs.services.jruby.jruby-agents :as jruby-agents]
             [puppetlabs.trapperkeeper.core :as trapperkeeper]
             [puppetlabs.trapperkeeper.services :as tk-services]
-            [puppetlabs.services.protocols.jruby-puppet :as jruby]
-            [slingshot.slingshot :as sling]
-            [puppetlabs.services.jruby.jruby-schemas :as jruby-schemas]))
+            [puppetlabs.services.protocols.jruby-puppet :as jruby]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Public
@@ -41,28 +38,25 @@
             pool-context (create-pool jruby-config)]
         (-> context
             (assoc :pool-context pool-context)
-            (assoc :borrow-timeout (:borrow-timeout config))
-            (assoc :event-callbacks (atom []))
             (assoc :environment-class-info-tags (atom {}))))))
+
   (stop
    [this context]
-   (let [{:keys [pool-context]} (tk-services/service-context this)
-         on-complete (promise)]
-     (log/debug "Beginning flush of JRuby pools for shutdown")
-     (jruby-agents/send-flush-pool-for-shutdown! pool-context on-complete)
-     @on-complete
-     (log/debug "Finished flush of JRuby pools for shutdown"))
+   (let [{:keys [pool-context]} (tk-services/service-context this)]
+     (jruby-core/flush-pool-for-shutdown! pool-context))
    context)
 
   (borrow-instance
     [this reason]
-    (let [{:keys [pool-context borrow-timeout event-callbacks]} (tk-services/service-context this)]
-      (jruby-core/borrow-from-pool-with-timeout pool-context reason @event-callbacks)))
+    (let [{:keys [pool-context]} (tk-services/service-context this)
+          event-callbacks (jruby-core/get-event-callbacks pool-context)]
+      (jruby-core/borrow-from-pool-with-timeout pool-context reason event-callbacks)))
 
   (return-instance
     [this jruby-instance reason]
-    (let [event-callbacks (:event-callbacks (tk-services/service-context this))]
-      (jruby-core/return-to-pool jruby-instance reason @event-callbacks)))
+    (let [pool-context (:pool-context (tk-services/service-context this))
+          event-callbacks (jruby-core/get-event-callbacks pool-context)]
+      (jruby-core/return-to-pool jruby-instance reason event-callbacks)))
 
   (free-instance-count
     [this]
@@ -117,7 +111,7 @@
    [this]
    (let [service-context (tk-services/service-context this)
           {:keys [pool-context]} service-context]
-     (jruby-agents/send-flush-and-repopulate-pool! pool-context)))
+     (jruby-core/flush-pool! pool-context)))
 
   (get-pool-context
    [this]
@@ -125,8 +119,8 @@
 
   (register-event-handler
     [this callback-fn]
-    (let [event-callbacks (:event-callbacks (tk-services/service-context this))]
-      (swap! event-callbacks conj callback-fn))))
+    (let [pool-context (:pool-context (tk-services/service-context this))]
+      (jruby-core/register-event-handler pool-context callback-fn))))
 
 (def #^{:macro true
         :doc "An alias for the jruby-utils' `with-jruby-instance` macro so

@@ -12,13 +12,11 @@
             [puppetlabs.trapperkeeper.testutils.bootstrap :as tk-testutils]
             [puppetlabs.trapperkeeper.testutils.logging :refer [with-test-logging]]
             [puppetlabs.services.jruby.jruby-testutils :as jruby-testutils]
-            [puppetlabs.services.jruby.jruby-puppet-internal :as jruby-internal]
             [clj-semver.core :as semver]
             [puppetlabs.trapperkeeper.core :as tk]
             [puppetlabs.trapperkeeper.internal :as tk-internal]
             [puppetlabs.kitchensink.testutils :as ks-testutils]
-            [puppetlabs.services.protocols.jruby-puppet :as jruby]
-            [puppetlabs.trapperkeeper.services :as tk-services]))
+            [puppetlabs.services.protocols.jruby-puppet :as jruby]))
 
 (def service-and-deps
   [puppet-server-config-service jruby-puppet-pooled-service jetty9-service

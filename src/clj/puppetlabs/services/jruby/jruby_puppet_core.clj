@@ -7,7 +7,6 @@
             [puppetlabs.services.jruby.jruby-puppet-schemas :as jruby-puppet-schemas]
             [puppetlabs.services.jruby.jruby-schemas :as jruby-schemas]
             [puppetlabs.services.jruby.jruby-core :as jruby-core]
-            [puppetlabs.services.puppet-profiler.puppet-profiler-core :as profiler-core]
             [puppetlabs.services.jruby.puppet-environments :as puppet-env]
             [puppetlabs.services.jruby.jruby-puppet-internal :as jruby-internal]
             [clojure.java.io :as io]

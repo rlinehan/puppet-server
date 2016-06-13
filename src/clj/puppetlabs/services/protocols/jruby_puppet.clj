@@ -76,8 +76,8 @@
     "Flush all the current JRuby instances and repopulate the pool.")
 
   (get-pool-context
-   [this]
-   "Get the pool context out of the service context.")
+    [this]
+    "Get the pool context out of the service context.")
 
   (register-event-handler
     [this callback]
