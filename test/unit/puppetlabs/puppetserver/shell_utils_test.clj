@@ -65,11 +65,9 @@
                                (script-path "env")
                                {:env {"FOO" "foo"}}))
           env (parse-env-output env-output)]
-      (is (= 2 (count env)))
-      ;; it seems that the JVM always includes a PWD env var, no
-      ;; matter what.
-      (is (= #{"FOO" "PWD"}
-             (ks/keyset env))))))
+      (is (contains? env "FOO")
+          (str "Expected 'FOO' to be in stdout, got: " env-output))
+      (is (= "foo" (get env "FOO"))))))
 
 (deftest pass-stdin-correctly
   (testing "passes stdin stream to command"
